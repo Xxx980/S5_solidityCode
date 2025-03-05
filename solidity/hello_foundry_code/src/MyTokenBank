@@ -1,0 +1,46 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "./MyTokenOZ.sol";  // 导入 MyTokenOZ 合约
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";  // 添加重入保护
+
+contract TokenBank is ReentrancyGuard {
+    MyTokenOZ public token;  // 使用 MyTokenOZ 类型替代 BaseERC20
+
+    mapping(address => uint256) public deposits;  // 记录每个地址的存款数量
+
+    event Deposited(address indexed user, uint256 amount);
+    event Withdrawn(address indexed user, uint256 amount);
+
+    constructor(MyTokenOZ _token) {
+        require(address(_token) != address(0), "TokenBank: invalid token address");
+        token = _token;  // 设置与 TokenBank 交互的 MyTokenOZ 合约
+    }
+
+    // 存款方法，用户将代币存入 TokenBank
+    function deposit(uint256 amount) public {
+        require(amount > 0, "Deposit amount must be greater than zero");
+
+        // 使用 transferFrom 从用户转移代币到 TokenBank
+        require(token.transferFrom(msg.sender, address(this), amount), "ERC20: transfer failed");
+
+        deposits[msg.sender] += amount;
+        emit Deposited(msg.sender, amount);
+    }
+
+    // 提款方法，用户从 TokenBank 提取代币
+    function withdraw(uint256 amount) public nonReentrant {
+        require(amount > 0, "Withdraw amount must be greater than zero");
+        require(deposits[msg.sender] >= amount, "Insufficient balance");
+        require(token.balanceOf(address(this)) >= amount, "TokenBank: insufficient token balance");
+
+        deposits[msg.sender] -= amount;
+        require(token.transfer(msg.sender, amount), "ERC20: transfer failed");
+        emit Withdrawn(msg.sender, amount);
+    }
+
+    // 查看某个地址在 TokenBank 中的存款数量
+    function balanceOf(address account) public view returns (uint256) {
+        return deposits[account];
+    }
+}
